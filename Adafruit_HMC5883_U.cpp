@@ -90,17 +90,21 @@ byte Adafruit_HMC5883_Unified::read8(byte address, byte reg)
     @brief  Reads the raw data from the sensor
 */
 /**************************************************************************/
-void Adafruit_HMC5883_Unified::read()
+bool Adafruit_HMC5883_Unified::read()
 {
   // Read the magnetometer
   Wire.beginTransmission((byte)HMC5883_ADDRESS_MAG);
   #if ARDUINO >= 100
-    Wire.write(HMC5883_REGISTER_MAG_OUT_X_H_M);
+    if(Wire.write(HMC5883_REGISTER_MAG_OUT_X_H_M)!=1)
+      return false;
   #else
-    Wire.send(HMC5883_REGISTER_MAG_OUT_X_H_M);
+    if(Wire.send(HMC5883_REGISTER_MAG_OUT_X_H_M)!=1)
+      return false;
   #endif
-  Wire.endTransmission();
-  Wire.requestFrom((byte)HMC5883_ADDRESS_MAG, (byte)6);
+  if(Wire.endTransmission()!=0)
+    return false;
+  if(Wire.requestFrom((byte)HMC5883_ADDRESS_MAG, (byte)6)!=6)
+    return false;
   
   // Wait around until enough data is available
   while (Wire.available() < 6);
@@ -129,6 +133,7 @@ void Adafruit_HMC5883_Unified::read()
   
   // ToDo: Calculate orientation
   _magData.orientation = 0.0;
+  return true;
 }
 
 /***************************************************************************
@@ -221,17 +226,18 @@ bool Adafruit_HMC5883_Unified::getEvent(sensors_event_t *event) {
   memset(event, 0, sizeof(sensors_event_t));
 
   /* Read new data */
-  read();
-  
-  event->version   = sizeof(sensors_event_t);
-  event->sensor_id = _sensorID;
-  event->type      = SENSOR_TYPE_MAGNETIC_FIELD;
-  event->timestamp = 0;
-  event->magnetic.x = _magData.x / _hmc5883_Gauss_LSB_XY * SENSORS_GAUSS_TO_MICROTESLA;
-  event->magnetic.y = _magData.y / _hmc5883_Gauss_LSB_XY * SENSORS_GAUSS_TO_MICROTESLA;
-  event->magnetic.z = _magData.z / _hmc5883_Gauss_LSB_Z * SENSORS_GAUSS_TO_MICROTESLA;
-  
-  return true;
+  if(read())
+  {
+    event->version   = sizeof(sensors_event_t);
+    event->sensor_id = _sensorID;
+    event->type      = SENSOR_TYPE_MAGNETIC_FIELD;
+    event->timestamp = 0;
+    event->magnetic.x = _magData.x / _hmc5883_Gauss_LSB_XY * SENSORS_GAUSS_TO_MICROTESLA;
+    event->magnetic.y = _magData.y / _hmc5883_Gauss_LSB_XY * SENSORS_GAUSS_TO_MICROTESLA;
+    event->magnetic.z = _magData.z / _hmc5883_Gauss_LSB_Z * SENSORS_GAUSS_TO_MICROTESLA;
+	return true;
+  }
+  return false;
 }
 
 /**************************************************************************/
